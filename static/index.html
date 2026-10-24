@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080c14">
+  <title>VOLTGRID AI — Microgrid Intelligence</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --canvas: #080c14;
+      --panel: #0d1421;
+      --line: rgba(148, 163, 184, .13);
+      --muted: #8190a7;
+      --cyan: #50d7f5;
+      --indigo: #8984ff;
+      --green: #48df9a;
+      --amber: #ffc66d;
+      --red: #ff637a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        radial-gradient(ellipse at 18% -10%, rgba(68, 65, 188, .18), transparent 37%),
+        radial-gradient(ellipse at 91% 11%, rgba(25, 125, 160, .12), transparent 30%),
+        var(--canvas);
+      color: #ecf3ff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell { max-width: 1440px; margin: auto; padding: 0 42px 56px; }
+    .topbar { height: 76px; border-bottom: 1px solid var(--line); }
+    .brand-mark {
+      display: grid; width: 38px; height: 38px; place-items: center; border-radius: 12px;
+      color: #080c14; background: linear-gradient(140deg, #64e8f1, #8f80ff);
+      box-shadow: 0 0 28px rgba(80, 215, 245, .18);
+    }
+    .status-pill { border: 1px solid rgba(72, 223, 154, .2); background: rgba(72, 223, 154, .07); color: #8af0bc; }
+    .eyebrow { color: #8d9bb0; font-size: 11px; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; }
+    .hero-title { letter-spacing: -.055em; line-height: 1.03; }
+    .gradient-text { color: transparent; background: linear-gradient(105deg, #8c85ff 4%, #56dcf3 70%, #96f1d0); background-clip: text; }
+    .panel {
+      border: 1px solid var(--line);
+      background: linear-gradient(145deg, rgba(18, 27, 43, .94), rgba(12, 18, 30, .9));
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .12);
+    }
+    .metric-card { min-height: 148px; position: relative; overflow: hidden; }
+    .metric-card:after { content: ""; position: absolute; top: -36px; right: -25px; width: 92px; height: 92px; border-radius: 50%; background: var(--glow); filter: blur(35px); opacity: .28; }
+    .metric-icon { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; color: var(--accent); background: rgba(255,255,255,.025); }
+    .subtle { color: var(--muted); }
+    .section-title { font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
+    .chart-wrap { height: 310px; }
+    .table-scroll { max-height: 440px; overflow: auto; scrollbar-color: #263349 transparent; }
+    table { border-collapse: collapse; min-width: 760px; width: 100%; }
+    th { position: sticky; top: 0; z-index: 1; background: #111a29; color: #8594aa; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+    td, th { padding: 13px 16px; text-align: left; border-bottom: 1px solid rgba(148, 163, 184, .09); white-space: nowrap; }
+    td { color: #cad5e5; font-size: 12px; }
+    tbody tr:hover { background: rgba(255,255,255,.025); }
+    .mode-storage { color: #67e7aa; background: rgba(72,223,154,.09); border: 1px solid rgba(72,223,154,.18); }
+    .mode-grid { color: #ffd078; background: rgba(255,198,109,.09); border: 1px solid rgba(255,198,109,.18); }
+    .alert-on { color: #ff8192; background: rgba(255,99,122,.1); border: 1px solid rgba(255,99,122,.24); }
+    .alert-off { color: #91a0b5; background: rgba(148,163,184,.07); border: 1px solid var(--line); }
+    .dropzone { border: 1px dashed rgba(137,132,255,.38); background: rgba(137,132,255,.035); transition: .2s ease; }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--cyan); background: rgba(80,215,245,.06); }
+    .btn-primary { color: #071019; background: linear-gradient(100deg, #59dff1, #a0f2d0); box-shadow: 0 8px 24px rgba(80,215,245,.12); }
+    .btn-primary:disabled { opacity: .55; cursor: wait; }
+    .btn-secondary { border: 1px solid var(--line); background: rgba(255,255,255,.035); color: #c7d3e2; }
+    .divider { border-top: 1px solid var(--line); }
+    .loading-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+    @media (max-width: 700px) {
+      .shell { padding: 0 18px 36px; }
+      .topbar { height: 66px; }
+      .hero-title { font-size: 43px; }
+      .chart-wrap { height: 260px; }
+      .metric-card { min-height: 138px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3 no-underline text-inherit">
+        <span class="brand-mark"><i data-lucide="zap" class="w-5 h-5"></i></span>
+        <span class="font-bold tracking-[.12em] text-[13px]">VOLTGRID <span class="text-slate-400 font-medium">AI</span></span>
+      </a>
+      <div class="status-pill inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold">
+        <span class="loading-dot"></span><span>Microgrid Engine Online</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="pt-12 pb-9 md:pt-[58px]">
+        <div class="eyebrow flex items-center gap-2 mb-4"><i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-300"></i> Intelligent energy operations</div>
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-7">
+          <div>
+            <h1 class="hero-title text-[52px] md:text-[68px] font-semibold">VOLTGRID <span class="gradient-text">AI</span></h1>
+            <p class="mt-4 text-sm md:text-[15px] subtle">Smart Microgrid Load Forecasting &amp; Power Dispatch Engine</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button id="sample-btn" class="btn-secondary rounded-xl px-4 py-3 text-xs font-semibold inline-flex items-center gap-2 hover:bg-white/10 transition">
+              <i data-lucide="sparkles" class="w-4 h-4"></i> Load 24-Hour Sample Data
+            </button>
+            <button id="refresh-btn" class="btn-primary rounded-xl px-4 py-3 text-xs font-bold inline-flex items-center gap-2 hover:brightness-110 transition">
+              <i data-lucide="radio" class="w-4 h-4"></i> Run Grid Simulation
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-5" aria-label="Live microgrid state">
+        <article class="panel metric-card rounded-2xl p-5" style="--accent:#53e2a1;--glow:#48df9a">
+          <div class="flex items-start justify-between"><div><div class="eyebrow">Active power source</div><div id="power-source" class="mt-4 text-[19px] font-semibold">Awaiting forecast</div></div><span class="metric-icon"><i data-lucide="battery-charging" class="w-[17px] h-[17px]"></i></span></div>
+          <div id="power-detail" class="subtle mt-2 text-xs">Dispatch state updates hourly</div>
+        </article>
+        <article class="panel metric-card rounded-2xl p-5" style="--accent:#58d9f1;--glow:#50d7f5">
+          <div class="flex items-start justify-between"><div><div class="eyebrow">Battery state of charge</div><div class="mt-3 flex items-baseline gap-2"><span id="soc-value" class="text-[31px] font-semibold tracking-tight">—</span><span class="subtle text-sm">%</span></div></div><span class="metric-icon"><i data-lucide="battery-medium" class="w-[17px] h-[17px]"></i></span></div>
+          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"><div id="soc-bar" class="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300 transition-all" style="width:0%"></div></div>
+        </article>
+        <article class="panel metric-card rounded-2xl p-5" style="--accent:#ff7488;--glow:#ff637a">
+          <div class="flex items-start justify-between"><div><div class="eyebrow">Overload monitor</div><div id="alert-state" class="mt-4 text-[19px] font-semibold">Monitoring</div></div><span class="metric-icon"><i data-lucide="shield-alert" class="w-[17px] h-[17px]"></i></span></div>
+          <div id="alert-detail" class="subtle mt-2 text-xs">Critical threshold at 200 kW</div>
+        </article>
+        <article class="panel metric-card rounded-2xl p-5" style="--accent:#a49dff;--glow:#8984ff">
+          <div class="flex items-start justify-between"><div><div class="eyebrow">Peak forecast demand</div><div class="mt-3 flex items-baseline gap-2"><span id="peak-value" class="text-[31px] font-semibold tracking-tight">—</span><span class="subtle text-sm">kW</span></div></div><span class="metric-icon"><i data-lucide="trending-up" class="w-[17px] h-[17px]"></i></span></div>
+          <div id="peak-time" class="subtle mt-2 text-xs">24-hour outlook</div>
+        </article>
+      </section>
+
+      <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.75fr)_minmax(280px,.75fr)] gap-4 mb-5">
+        <article class="panel rounded-2xl p-5 md:p-6">
+          <div class="flex flex-wrap items-start justify-between gap-4 mb-3">
+            <div><div class="section-title">24-hour load curve</div><div class="subtle text-xs mt-1">Forecasted demand against dispatch and safety thresholds</div></div>
+            <div class="flex items-center gap-4 text-[10px] subtle"><span class="flex items-center gap-2"><i class="w-2 h-2 rounded-full bg-cyan-300"></i> Forecast</span><span class="flex items-center gap-2"><i class="w-2 h-px bg-amber-300"></i> 160 kW</span><span class="flex items-center gap-2"><i class="w-2 h-px bg-rose-400"></i> 200 kW</span></div>
+          </div>
+          <div class="chart-wrap"><canvas id="demand-chart" aria-label="Hourly energy demand forecast"></canvas></div>
+        </article>
+        <aside class="panel rounded-2xl p-5 md:p-6">
+          <div class="flex items-start justify-between">
+            <div><div class="section-title">Telemetry intake</div><p class="subtle text-xs mt-1">Provide hourly weather inputs to forecast demand.</p></div>
+            <span class="metric-icon text-indigo-300"><i data-lucide="database" class="w-[17px] h-[17px]"></i></span>
+          </div>
+          <div id="dropzone" class="dropzone mt-5 rounded-xl p-5 text-center cursor-pointer">
+            <input id="csv-input" type="file" accept=".csv,text/csv" class="hidden">
+            <span class="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-xl bg-indigo-400/10 text-indigo-200"><i data-lucide="upload-cloud" class="w-5 h-5"></i></span>
+            <div class="text-xs font-semibold">Drop a CSV here or <span class="text-cyan-300">browse</span></div>
+            <div class="subtle mt-1.5 text-[10px]">timestamp, ambient_temp_c, humidity_pct, solar_irradiance_wm2</div>
+            <div id="file-name" class="mt-2 truncate text-[10px] text-cyan-200"></div>
+          </div>
+          <div class="divider my-5"></div>
+          <div class="flex items-center justify-between text-xs"><span class="subtle">Telemetry points</span><strong id="point-count" class="font-semibold">—</strong></div>
+          <div class="flex items-center justify-between text-xs mt-3"><span class="subtle">Dispatch rules</span><span class="text-emerald-300">Live</span></div>
+          <div id="error-msg" role="status" class="hidden mt-4 rounded-lg border border-rose-400/20 bg-rose-400/5 p-3 text-xs text-rose-200"></div>
+        </aside>
+      </section>
+
+      <section class="panel rounded-2xl overflow-hidden">
+        <div class="p-5 md:px-6 flex flex-wrap items-center justify-between gap-3">
+          <div><div class="section-title">Hourly dispatch schedule</div><div class="subtle text-xs mt-1">Weather telemetry, demand estimate and grid transition by hour</div></div>
+          <span id="schedule-count" class="rounded-full border border-slate-700/70 px-3 py-1.5 text-[10px] subtle">No forecast loaded</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Timestamp</th><th>Air temp</th><th>Humidity</th><th>Solar</th><th>Demand</th><th>Grid mode</th><th>Alert</th></tr></thead>
+            <tbody id="dispatch-body"><tr><td colspan="7" class="py-12 text-center subtle">Load the test sample or upload telemetry to begin.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      <footer class="pt-6 flex flex-wrap justify-between gap-2 text-[10px] subtle"><span>VOLTGRID AI <span class="text-slate-600">/</span> Microgrid Intelligence Platform</span><span>Forecasts are estimates for operational decision support.</span></footer>
+    </main>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let telemetry = [];
+    let chart;
+
+    function showError(message) {
+      $("error-msg").textContent = message;
+      $("error-msg").classList.remove("hidden");
+    }
+    function clearError() {
+      $("error-msg").textContent = "";
+      $("error-msg").classList.add("hidden");
+    }
+    function parseCsvLine(line) {
+      const values = [];
+      let value = "", quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const character = line[i];
+        if (character === '"' && line[i + 1] === '"' && quoted) { value += '"'; i++; }
+        else if (character === '"') quoted = !quoted;
+        else if (character === "," && !quoted) { values.push(value); value = ""; }
+        else value += character;
+      }
+      values.push(value);
+      return values;
+    }
+    function parseCsv(text) {
+      const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
+      if (lines.length < 2) throw new Error("CSV must contain a header and at least one telemetry row.");
+      const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+      const required = ["timestamp", "ambient_temp_c", "humidity_pct", "solar_irradiance_wm2"];
+      const missing = required.filter((name) => !headers.includes(name));
+      if (missing.length) throw new Error(`CSV is missing required column${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`);
+      return lines.slice(1).map((line, index) => {
+        const values = parseCsvLine(line);
+        const row = Object.fromEntries(headers.map((header, column) => [header, values[column]?.trim() ?? ""]));
+        for (const name of required.slice(1)) {
+          row[name] = Number(row[name]);
+          if (!Number.isFinite(row[name])) throw new Error(`Invalid ${name} in CSV row ${index + 2}.`);
+        }
+        if (!row.timestamp) throw new Error(`Missing timestamp in CSV row ${index + 2}.`);
+        return Object.fromEntries(required.map((name) => [name, row[name]]));
+      });
+    }
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(detail.detail || `Request failed (${response.status})`);
+      }
+      return response.json();
+    }
+    async function loadSample() {
+      clearError();
+      try {
+        const data = await fetchJson("/api/v1/samples");
+        telemetry = data.telemetry;
+        $("file-name").textContent = "Built-in 24-hour sample";
+        $("point-count").textContent = `${telemetry.length} hourly records`;
+        await runForecast();
+      } catch (error) { showError(error.message); }
+    }
+    async function runForecast() {
+      if (!telemetry.length) { await loadSample(); return; }
+      clearError();
+      const button = $("refresh-btn");
+      button.disabled = true;
+      try {
+        const result = await fetchJson("/api/v1/forecast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telemetry })
+        });
+        render(result.dispatch);
+      } catch (error) {
+        showError(error.message);
+      } finally { button.disabled = false; }
+    }
+    function render(rows) {
+      $("point-count").textContent = `${rows.length} hourly records`;
+      $("schedule-count").textContent = `${rows.length} dispatch intervals`;
+      if (!rows.length) return;
+      const peak = rows.reduce((best, row) => row.target_demand_kw > best.target_demand_kw ? row : best, rows[0]);
+      const storageHours = rows.filter((row) => row.grid_mode === "Renewable Storage Mode").length;
+      const alertCount = rows.filter((row) => row.critical_overload).length;
+      $("power-source").textContent = peak.grid_mode === "Renewable Storage Mode" ? "Renewable Battery Storage" : "Main Grid";
+      $("power-detail").textContent = `${storageHours} of ${rows.length} intervals routed to storage`;
+      const soc = Number(rows[rows.length - 1].battery_soc_pct);
+      $("soc-value").textContent = Number.isFinite(soc) ? soc.toFixed(0) : "—";
+      $("soc-bar").style.width = `${Math.max(0, Math.min(100, soc || 0))}%`;
+      $("alert-state").textContent = alertCount ? `${alertCount} critical interval${alertCount === 1 ? "" : "s"}` : "No overload";
+      $("alert-state").style.color = alertCount ? "var(--red)" : "var(--green)";
+      $("alert-detail").textContent = alertCount ? "Demand reached or exceeded 200 kW" : "All intervals below 200 kW";
+      $("peak-value").textContent = Number(peak.target_demand_kw).toFixed(1);
+      $("peak-time").textContent = `Peak at ${new Date(peak.timestamp).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
+      renderChart(rows.slice(0, 24));
+      $("dispatch-body").innerHTML = rows.map((row) => {
+        const storage = row.grid_mode === "Renewable Storage Mode";
+        return `<tr>
+          <td>${escapeHtml(new Date(row.timestamp).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }))}</td>
+          <td>${Number(row.ambient_temp_c).toFixed(1)} °C</td>
+          <td>${Number(row.humidity_pct).toFixed(0)}%</td>
+          <td>${Number(row.solar_irradiance_wm2).toFixed(0)} W/m²</td>
+          <td class="font-semibold text-slate-100">${Number(row.target_demand_kw).toFixed(1)} kW</td>
+          <td><span class="rounded-full px-2.5 py-1 text-[10px] font-semibold ${storage ? "mode-storage" : "mode-grid"}">${storage ? "Renewable Storage" : "Main Grid"}</span></td>
+          <td><span class="rounded-full px-2.5 py-1 text-[10px] font-semibold ${row.critical_overload ? "alert-on" : "alert-off"}">${row.critical_overload ? "Critical overload" : "Normal"}</span></td>
+        </tr>`;
+      }).join("");
+    }
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    }
+    function renderChart(rows) {
+      const context = $("demand-chart").getContext("2d");
+      const gradient = context.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, "rgba(80, 215, 245, .28)");
+      gradient.addColorStop(1, "rgba(80, 215, 245, 0)");
+      const labels = rows.map((row) => new Date(row.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (chart) chart.destroy();
+      chart = new Chart(context, {
+        type: "line",
+        data: { labels, datasets: [
+          { label: "Forecast demand", data: rows.map((row) => row.target_demand_kw), borderColor: "#50d7f5", backgroundColor: gradient, fill: true, tension: .38, borderWidth: 2.5, pointRadius: 2, pointHoverRadius: 5, pointBackgroundColor: "#a2f2f1" },
+          { label: "Storage trigger · 160 kW", data: rows.map(() => 160), borderColor: "rgba(255,198,109,.8)", borderDash: [5, 5], borderWidth: 1, pointRadius: 0 },
+          { label: "Critical overload · 200 kW", data: rows.map(() => 200), borderColor: "rgba(255,99,122,.8)", borderDash: [5, 5], borderWidth: 1, pointRadius: 0 }
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" },
+          plugins: { legend: { display: false }, tooltip: { backgroundColor: "#111a29", borderColor: "rgba(148,163,184,.2)", borderWidth: 1, titleColor: "#e7f0fc", bodyColor: "#a8b8cc", padding: 12, displayColors: true } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: "#74839a", maxTicksLimit: 12, maxRotation: 0, font: { size: 10 } }, border: { display: false } },
+            y: { beginAtZero: false, suggestedMin: 80, suggestedMax: 220, grid: { color: "rgba(148,163,184,.09)" }, ticks: { color: "#74839a", font: { size: 10 }, callback: (value) => `${value} kW` }, border: { display: false } }
+          }
+        }
+      });
+    }
+    $("sample-btn").addEventListener("click", loadSample);
+    $("refresh-btn").addEventListener("click", runForecast);
+    $("dropzone").addEventListener("click", () => $("csv-input").click());
+    $("csv-input").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      clearError();
+      try {
+        telemetry = parseCsv(await file.text());
+        $("file-name").textContent = file.name;
+        $("point-count").textContent = `${telemetry.length} hourly records`;
+        await runForecast();
+      } catch (error) { showError(error.message); }
+    });
+    $("dropzone").addEventListener("dragover", (event) => { event.preventDefault(); $("dropzone").classList.add("dragover"); });
+    $("dropzone").addEventListener("dragleave", () => $("dropzone").classList.remove("dragover"));
+    $("dropzone").addEventListener("drop", async (event) => {
+      event.preventDefault();
+      $("dropzone").classList.remove("dragover");
+      const file = event.dataTransfer.files?.[0];
+      if (!file) return;
+      clearError();
+      try {
+        telemetry = parseCsv(await file.text());
+        $("file-name").textContent = file.name;
+        $("point-count").textContent = `${telemetry.length} hourly records`;
+        await runForecast();
+      } catch (error) { showError(error.message); }
+    });
+    if (window.lucide) lucide.createIcons();
+    loadSample();
+  </script>
+</body>
+</html>
